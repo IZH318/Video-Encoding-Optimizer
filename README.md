@@ -508,7 +508,7 @@ Stream size                    : 390 MiB (5%)```
 </details>
 </details>
 
-<br><br>
+<br>
 
 ## 📄 라이선스 (License)
 
