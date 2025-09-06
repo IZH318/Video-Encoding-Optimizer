@@ -176,8 +176,8 @@ APP_CONFIG = {
     # ==============================================================================
     "about_info": {
         "program": "Video Encoding Optimizer",          # 프로그램 이름
-        "version": "1.0.0",                             # 버전
-        "updated": "2025-09-04",                        # 업데이트 날짜
+        "version": "1.0.1",                             # 버전
+        "updated": "2025-09-06",                        # 업데이트 날짜
         "license": "GNU General Public License v3.0",   # 라이선스
         "developer": "(Github) IZH318",                 # 개발자 정보
         "website": "https://github.com/IZH318",         # 웹사이트
@@ -4333,6 +4333,9 @@ class VideoOptimizerApp:
         mode = self.sample_mode_var.get() # 현재 선택된 샘플 모드 값을 가져옴
         is_manual = (mode == "Manual")
         is_auto = (mode == "Auto")
+
+        # Analysis Method 콤보박스 상태 제어 코드 추가
+        self.analysis_method_combo.config(state="readonly" if is_auto else tk.DISABLED)
         
         # 'Auto' 모드 관련 위젯들의 활성화 상태를 설정
         self.auto_mode_type_combo.config(state="readonly" if is_auto else tk.DISABLED)
