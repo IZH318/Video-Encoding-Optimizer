@@ -476,6 +476,35 @@ This tool follows a systematic process to find the optimal encoding settings.
 
 <br>
 
+## 🔄 Changelog
+
+### v1.0.1 (2025-09-06)
+
+This update focuses on improving the stability and UI clarity of the manual sample mode, based on user feedback.
+
+-   #### **Bug Fixes**
+    -   **Improved Manual Sample Mode Stability**:
+        -   Fixed an issue where encoding tests would not run correctly when `Sample Selection` was set to `Manual` due to an internal settings conflict. The manually specified sample range is now reliably applied to all tests.
+
+-   #### **Improvements**
+    -   **Enhanced UI Clarity**:
+        -   The `Analysis Method` dropdown menu, which is irrelevant in `Manual` mode, is now correctly disabled when this mode is selected. This prevents user confusion and improves UI consistency.
+
+<br>
+
+<details>
+<summary>📜 Previous Updates - Click to expand</summary>
+<br>
+<details>
+<summary>v1.0.0 (2025-09-04)</summary>
+
+-   Initial release.
+
+</details>
+</details>
+
+<br>
+
 ## 📄 License
 
 This project is licensed under the **[GNU General Public License v3.0](LICENSE)**.
