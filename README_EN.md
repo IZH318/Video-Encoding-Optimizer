@@ -478,7 +478,31 @@ This tool follows a systematic process to find the optimal encoding settings.
 
 ## 🔄 Changelog
 
-### v1.0.1 (2025-09-06)
+### v1.1.0 (2025-09-07)
+
+This update focuses on resolving a critical error with specific video file formats (e.g., `.ts`) and significantly enhancing the program's overall stability and compatibility.
+
+-   #### **Bug Fixes**
+    -   **Fixed FFmpeg Color Space Option**:
+        -   Corrected a critical bug where encoding would fail for videos containing color space metadata due to an incorrect FFmpeg option (`-color_space`). The correct option (`-colorspace`) is now used.
+
+-   #### **Improvements**
+    -   **Greatly Improved Handling of Broadcast Streams (`.ts`) and Unstable Video Files**:
+        -   **Enhanced Interlaced Video Processing Stability**: Resolved issues where the deinterlacing filter (`bwdif`) would not apply correctly to videos with unstable timestamps. The program now reliably converts interlaced videos into progressive samples.
+        -   **Strengthened Handling of Corrupted Timestamps**: When processing videos with missing or irregular timestamps, FFmpeg will now regenerate them (`-fflags +genpts`) and correct the timing to a constant frame rate (`-vsync cfr`), significantly reducing analysis failures.
+        -   **Ensured Structural Integrity of Sample Files**: The first frame of every generated sample is now forced to be a keyframe (`-force_key_frames`), ensuring structural integrity and preventing failures in subsequent encoding and analysis steps.
+
+    -   **Enhanced Error Logging**:
+        -   When an FFmpeg/FFprobe process fails, the executed command and the full error message are now recorded in detail in the `Video Encoding Optimizer.log` file, making it easier to diagnose issues.
+
+<br>
+
+<details>
+<summary>📜 Previous Updates - Click to expand</summary>
+<br>
+
+<details>
+<summary>v1.0.1 (2025-09-06)</summary>
 
 This update focuses on improving the stability and UI clarity of the manual sample mode, based on user feedback.
 
@@ -490,10 +514,7 @@ This update focuses on improving the stability and UI clarity of the manual samp
     -   **Enhanced UI Clarity**:
         -   The `Analysis Method` dropdown menu, which is irrelevant in `Manual` mode, is now correctly disabled when this mode is selected. This prevents user confusion and improves UI consistency.
 
-<br>
-
-<details>
-<summary>📜 Previous Updates - Click to expand</summary>
+</details>
 <br>
 <details>
 <summary>v1.0.0 (2025-09-04)</summary>
