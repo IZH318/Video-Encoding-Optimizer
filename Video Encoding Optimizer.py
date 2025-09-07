@@ -176,8 +176,8 @@ APP_CONFIG = {
     # ==============================================================================
     "about_info": {
         "program": "Video Encoding Optimizer",          # 프로그램 이름
-        "version": "1.0.1",                             # 버전
-        "updated": "2025-09-06",                        # 업데이트 날짜
+        "version": "1.1.0",                             # 버전
+        "updated": "2025-09-07",                        # 업데이트 날짜
         "license": "GNU General Public License v3.0",   # 라이선스
         "developer": "(Github) IZH318",                 # 개발자 정보
         "website": "https://github.com/IZH318",         # 웹사이트
@@ -2082,6 +2082,7 @@ def perform_one_test(task: EncodingTask):
     
     # --- 4. 예외 처리 ---
     except subprocess.CalledProcessError as e:
+        # FFmpeg 프로세스가 0이 아닌 종료 코드를 반환한 경우의 처리
         end_time_dt = datetime.now()
         duration_td = end_time_dt - start_time_dt
         time_summary = (
@@ -2090,12 +2091,27 @@ def perform_one_test(task: EncodingTask):
             f"End Time:       {end_time_dt.strftime('%Y-%m-%d %H:%M:%S')}\n"
             f"Total Duration: {str(duration_td).split('.')[0]} (HH:MM:SS)\n\n"
         )
-        message = f"FFmpeg process failed (Preset: {task.preset}, CRF: {task.crf}): Return code {e.returncode}"
+        
+        # e.stderr가 비어있는(None) 경우를 대비한 안전한 처리
+        stderr_output = ""
         if e.stderr:
-            message += f"\nFFmpeg error: {e.stderr.decode('utf-8', 'ignore')[:200]}..."
-        return {"status": "error", "message": message, "log": time_summary + log_output, "preset": task.preset, "crf": task.crf}
+            # bytes 타입일 경우 문자열로 디코딩
+            if isinstance(e.stderr, bytes):
+                stderr_output = e.stderr.decode('utf-8', errors='ignore')
+            else:
+                stderr_output = e.stderr
+
+        # 사용자에게 표시될 오류 메시지 생성
+        message = f"FFmpeg process failed (Preset: {task.preset}, CRF: {task.crf}): Return code {e.returncode}"
+        if stderr_output:
+            message += f"\nFFmpeg error: {stderr_output.strip()[:200]}..."
+        
+        # 현재까지 누적된 모든 로그와 타이밍 정보를 최종 결과에 포함
+        final_log = time_summary + log_output
+        return {"status": "error", "message": message, "log": final_log, "preset": task.preset, "crf": task.crf}
     
     except OSError as e:
+        # 파일 시스템 접근 또는 프로세스 생성 관련 시스템 오류의 처리
         end_time_dt = datetime.now()
         duration_td = end_time_dt - start_time_dt
         time_summary = (
@@ -2105,9 +2121,11 @@ def perform_one_test(task: EncodingTask):
             f"Total Duration: {str(duration_td).split('.')[0]} (HH:MM:SS)\n\n"
         )
         message = f"System error during encode (Preset: {task.preset}, CRF: {task.crf}): {e}"
-        return {"status": "error", "message": message, "log": time_summary + log_output, "preset": task.preset, "crf": task.crf}
+        final_log = time_summary + log_output
+        return {"status": "error", "message": message, "log": final_log, "preset": task.preset, "crf": task.crf}
     
     except Exception as e:
+        # 위에서 명시되지 않은 기타 모든 예외의 처리
         end_time_dt = datetime.now()
         duration_td = end_time_dt - start_time_dt
         time_summary = (
@@ -2117,7 +2135,8 @@ def perform_one_test(task: EncodingTask):
             f"Total Duration: {str(duration_td).split('.')[0]} (HH:MM:SS)\n\n"
         )
         message = f"Unexpected error during encode (Preset: {task.preset}, CRF: {task.crf}): {e}"
-        return {"status": "error", "message": message, "log": time_summary + log_output, "preset": task.preset, "crf": task.crf}
+        final_log = time_summary + log_output
+        return {"status": "error", "message": message, "log": final_log, "preset": task.preset, "crf": task.crf}
     
     # --- 5. 마무리 (정리 작업) ---
     finally:
@@ -4737,7 +4756,7 @@ class VideoOptimizerApp:
         try:
             codec = self.codec_var.get()
             mode = self.optimization_mode_var.get()
-            quality = f"{self.quality_start_var.get()}-{self.quality_end_var.get()}"
+            quality = f"{self.crf_start_var.get()}-{self.crf_end_var.get()}"
             jobs = self.parallel_jobs_var.get()
             duration = self.sample_duration_var.get()
             
@@ -5112,11 +5131,20 @@ class VideoOptimizerApp:
             self.all_results.append(result) # 결과 리스트에 추가
             self.apply_view_filter() # 결과 테이블 갱신
         elif result.get("status") == "error": # 실패한 경우
+            # result 딕셔셔너리에서 message와 log_content를 먼저 가져옴
             message = result.get("message", "An unknown worker error occurred.")
-            log = result.get("log", "No log was captured.")
-            logging.error(LOG_MESSAGES['worker_error'].format(message))
+            log_content = result.get("log", "No log was captured from worker.")
+            
+            # 워커의 실패 내용을 메인 로그 파일에 상세히 기록
+            logging.error("="*80)
+            logging.error("--- Worker Process Failed ---")
+            logging.error(f"Error Summary: {message}")
+            logging.error(f"Full Worker Log:\n{log_content}")
+            logging.error("--- End of Worker Failure Report ---")
+            logging.error("="*80)
+            
             messagebox.showerror("Worker Process Error", message) # 사용자에게 오류 메시지 표시
-            LogViewerWindow(self.root, log) # 상세 로그 뷰어 창을 띄움
+            LogViewerWindow(self.root, log_content) # 상세 로그 뷰어 창을 띄움
 
     def process_target_vmaf_result(self, result, preset_name, total_presets):
         """
@@ -7282,13 +7310,13 @@ class VideoOptimizerApp:
         Returns:
             float: 비디오의 전체 길이 (초) 또는 None (실패 시)
         """
+        # ffprobe 명령어를 구성하여 비디오의 'duration' 정보만 요청
+        cmd = [self.ffprobe_path, "-v", "error", 
+               "-analyzeduration", "20M", "-probesize", "20M",
+               "-show_entries", "format=duration", 
+               "-of", "default=noprint_wrappers=1:nokey=1", filepath]
+        
         try:
-            # ffprobe 명령어를 구성하여 비디오의 'duration' 정보만 요청
-            cmd = [self.ffprobe_path, "-v", "error", 
-                   "-analyzeduration", "20M", "-probesize", "20M",
-                   "-show_entries", "format=duration", 
-                   "-of", "default=noprint_wrappers=1:nokey=1", filepath]
-            
             # 명령어를 실행하고 표준 출력을 가져옴
             result = subprocess.run(cmd, capture_output=True, text=True, check=True, startupinfo=_get_subprocess_startupinfo())
             
@@ -7296,16 +7324,24 @@ class VideoOptimizerApp:
             return float(result.stdout)
             
         except subprocess.CalledProcessError as e:
-            logging.error(f"FFmpeg process failed getting video duration for {filepath}: {e}")
+            # ffprobe가 실행되었으나 0이 아닌 종료 코드를 반환하며 실패한 경우, 중앙 로깅 헬퍼로 상세히 기록
+            self._log_subprocess_error(f"Get Video Duration for '{os.path.basename(filepath)}'", e)
             return None
         except ValueError as e:
+            # ffprobe는 성공했으나, 그 출력이 숫자가 아니어서(예: "N/A") float() 변환에 실패한 경우의 오류 로깅
             logging.error(f"Invalid duration value for {filepath}: {e}")
             return None
         except OSError as e:
-            logging.error(f"System error getting video duration for {filepath}: {e}")
+            # ffprobe.exe 파일을 찾지 못하거나 실행 권한이 없는 등, 프로세스 시작 자체를 실패한 경우의 오류 로깅
+            import shlex
+            cmd_str = shlex.join(cmd)
+            logging.error(f"System error trying to execute ffprobe for {filepath}. Check paths and permissions.")
+            logging.error(f"Failed Command: {cmd_str}")
+            logging.error(f"OS Error Details: {e}", exc_info=True)
             return None
         except Exception as e:
-            logging.error(f"Unexpected error getting video duration for {filepath}: {e}")
+            # 그 외 예상치 못한 모든 예외를 처리하기 위한 최종 오류 로깅 (디버깅용 상세 정보 포함)
+            logging.error(f"Unexpected error getting video duration for {filepath}: {e}", exc_info=True)
             return None
 
     def get_color_info(self, filepath: str) -> Dict[str, str]:
@@ -7321,7 +7357,7 @@ class VideoOptimizerApp:
         Returns:
             Dict[str, str]: 색상 관련 메타데이터를 담은 딕셔너리
         """
-        color_keys = ["color_range", "color_space", "color_primaries", "color_trc"]
+        color_keys = ["color_range", "colorspace", "color_primaries", "color_trc"]
         info = {}
         try:
             # ffprobe를 사용하여 비디오 스트림의 상세 정보를 JSON 형식으로 요청
@@ -7430,7 +7466,12 @@ class VideoOptimizerApp:
             cmd.extend(["-vf", ",".join(vf_options)])
             
         # 추출된 샘플을 빠른 속도로 무손실(-qp 0) 압축하여 저장
-        cmd.extend(["-c:v", "libx264", "-preset", "ultrafast", "-qp", "0", "-an", sample_path_abs])
+        cmd.extend([
+            "-vsync", "cfr",
+            "-c:v", "libx264", "-preset", "ultrafast", "-qp", "0", 
+            "-force_key_frames", "expr:eq(n,0)",
+            "-an", sample_path_abs
+        ])
 
         try:
             # 샘플 추출 시작 로깅
@@ -7443,11 +7484,32 @@ class VideoOptimizerApp:
             logging.info(f"Sample extraction completed successfully - Output: {sample_path_abs}")
             return sample_path_abs
         except subprocess.CalledProcessError as e:
-            # FFmpeg 실행 실패 시 상세 오류 로깅
-            error_msg = f"Sample extraction failed. Command: {' '.join(cmd)}"
-            if e.stderr:
-                error_msg += f"\nFFmpeg error: {e.stderr.decode('utf-8', 'ignore')[:300]}..."
-            logging.error(error_msg)
+            # 샘플 추출의 초기 실행이 실패한 경우, 상세한 오류 원인을 파악하여 로깅
+
+            # 샘플 추출 작업이 실패했음을 알리는 로그 헤더를 기록
+            logging.error(f"--- Subprocess Failed: Sample Extraction for '{os.path.basename(input_file)}' ---")
+
+            # 초기 명령어 실행이 실패했음과 FFmpeg로부터 받은 반환 코드를 로깅
+            logging.error(f"Initial sample extraction command failed with return code {e.returncode}.")
+
+            # 오류의 상세 원인을 파악하기 위해, 출력을 캡처하는 모드로 명령어를 재실행함을 알림
+            logging.error("Rerunning with output capture to get error details...")
+            
+            # 실패 원인을 파악하기 위해, 이번에는 출력을 캡처해서 다시 실행
+            result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', errors='ignore')
+            
+            # 재실행 결과에서 표준 오류(stderr) 출력을 가져와 앞뒤 공백을 제거
+            stderr_output = result.stderr.strip()
+
+            # 오류 출력이 존재하는 경우, 해당 내용을 로그 파일에 기록
+            if stderr_output:
+                logging.error(f"Error Output (stderr) on retry:\n{stderr_output}")
+            else:
+                # 오류 출력이 캡처되지 않은 경우, 그 사실을 로그에 기록
+                logging.error("No error output (stderr) was captured on retry.")
+            
+            # 샘플 추출 실패 보고서의 끝을 알리는 로그 푸터를 기록
+            logging.error("--- End of Sample Extraction Failure Report ---")
             return None
         except OSError as e:
             logging.error(f"System error during sample extraction: {e}")
@@ -7819,6 +7881,33 @@ class VideoOptimizerApp:
             pass
         except Exception as e:
             logging.error(f"Error while trying to terminate child ffmpeg processes: {e}")
+
+    def _log_subprocess_error(self, context: str, e: subprocess.CalledProcessError):
+        """
+        subprocess.CalledProcessError 예외가 발생했을 때 상세 정보를 로깅하는 중앙 헬퍼 함수.
+        """        
+        logging.error(f"--- Subprocess Failed: {context} ---")
+        try:
+            # 실행하려 했던 명령어를 사람이 읽기 좋은 문자열로 변환
+            cmd_str = shlex.join(e.cmd)
+            logging.error(f"Command: {cmd_str}")
+        except Exception:
+            logging.error(f"Command (raw list): {e.cmd}")
+        
+        logging.error(f"Return Code: {e.returncode}")
+        
+        # FFmpeg/FFprobe가 출력한 실제 오류 메시지(stderr)를 로깅
+        stderr_output = e.stderr
+        if isinstance(stderr_output, bytes):
+            stderr_output = stderr_output.decode('utf-8', errors='ignore')
+        
+        if stderr_output:
+            # multi-line 로그를 위해 앞에 들여쓰기 없이 출력
+            logging.error(f"Error Output (stderr):\n{stderr_output.strip()}")
+        else:
+            logging.error("No error output (stderr) was captured from the subprocess.")
+        
+        logging.error("--- End of Subprocess Failure Report ---")
 
     def _cleanup_temp_dir(self, temp_dir):
         """
